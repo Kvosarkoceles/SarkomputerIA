@@ -1,6 +1,7 @@
 #!/bin/bash
 # ============================================================
-#  AI LAB EXTREMO – Post-instalación para Debian 12/13
+#  AI LAB EXTREMO – Post-instalación para Ubuntu 24.04
+#  Temas Satánicos: GRUB, Terminal, Fondos, Temas GNOME
 #  Uso: sudo bash postinstall-ai-lab.sh
 # ============================================================
 
@@ -74,18 +75,203 @@ apt-get install -y \
 log "Paquetes base instalados"
 
 ########################################
-# 2. GNOME – TEMAS Y CONFIGURACIÓN
+# 2. GNOME – TEMAS SATÁNICOS Y CONFIGURACIÓN
 ########################################
-step "2/14 – GNOME temas y configuración"
-apt-get install -y arc-theme papirus-icon-theme
+step "2/14 – GNOME temas satánicos y configuración"
+apt-get install -y dconf-cli gnome-shell-extensions papirus-icon-theme 2>/dev/null || true
+
+# Descargar e instalar tema Dracula Dark (tema satánico)
+THEME_DIR="$USER_HOME/.themes"
+ICON_DIR="$USER_HOME/.icons"
+mkdir -p "$THEME_DIR" "$ICON_DIR"
+
+# Tema Dracula Dark
+if [ ! -d "$THEME_DIR/Dracula-dark" ]; then
+    cd /tmp
+    git clone --depth 1 https://github.com/dracula/gtk.git dracula-gtk 2>/dev/null || true
+    if [ -d dracula-gtk ]; then
+        cp -r dracula-gtk/Dracula* "$THEME_DIR/" 2>/dev/null || true
+        log "Tema Dracula Dark instalado"
+    fi
+fi
+
+# Aplicar tema oscuro/satánico a GNOME
+sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark' 2>/dev/null || true
+sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
+sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.interface icon-theme 'Papirus-Dark' 2>/dev/null || true
 sudo -u "$TARGET_USER" gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'BOTTOM' 2>/dev/null || true
 sudo -u "$TARGET_USER" gsettings set org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 48 2>/dev/null || true
-log "GNOME configurado"
+sudo -u "$TARGET_USER" gsettings set org.gnome.shell.extensions.dash-to-dock background-color '#0a0a0a' 2>/dev/null || true
+
+# Aplicar colores rojos oscuros a la barra superior
+sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.wm.preferences titlebar-font 'Cantarell Bold 12' 2>/dev/null || true
+
+log "Temas satánicos GNOME configurados"
 
 ########################################
-# 3. VISUAL STUDIO CODE
+# 2B. CONFIGURACIÓN DE GRUB – TEMA SATÁNICO
 ########################################
-step "3/14 – Visual Studio Code"
+step "3/14 – Configuración de GRUB con tema satánico"
+
+# Crear tema GRUB personalizado con colores satánicos (rojo oscuro + negro)
+mkdir -p /boot/grub/themes/Satanic
+
+cat > /boot/grub/themes/Satanic/theme.txt <<'GRUBTHEME'
+# GRUB2 Satanic Theme
+# Colores negros y rojos oscuros - Tema demoniaco
+
+desktop-image: ""
+desktop-color: "#000000"
+
+terminal-border: "0"
+terminal-left: "0"
+terminal-right: "0"
+terminal-top: "0"
+terminal-bottom: "0"
+
+title-text: "🔥 AI LAB EXTREMO 🔥"
+title-font: "Unifont Regular 16"
+title-color: "#AA0000"
+
+menu-border: "0"
+left: "0"
+top: "0"
+width: "100%"
+height: "100%"
+
+# Colores de texto - gris claro sobre fondo oscuro
+text-color: "#CCCCCC"
+
+# Elementos seleccionados en rojo oscuro
+highlight-color: "#660000"
+highlight-text-color: "#FFFFFF"
+GRUBTHEME
+
+log "Tema GRUB satánico creado"
+
+# Configurar GRUB para usar el tema
+if grep -q "GRUB_THEME=" /etc/default/grub; then
+    sed -i 's|GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/Satanic/theme.txt"|' /etc/default/grub
+else
+    echo 'GRUB_THEME="/boot/grub/themes/Satanic/theme.txt"' >> /etc/default/grub
+fi
+
+# Colores de GRUB (fondo negro, texto rojo)
+if grep -q "GRUB_COLOR_NORMAL=" /etc/default/grub; then
+    sed -i 's|GRUB_COLOR_NORMAL=.*|GRUB_COLOR_NORMAL="darkred/black"|' /etc/default/grub
+else
+    echo 'GRUB_COLOR_NORMAL="darkred/black"' >> /etc/default/grub
+fi
+
+if grep -q "GRUB_COLOR_HIGHLIGHT=" /etc/default/grub; then
+    sed -i 's|GRUB_COLOR_HIGHLIGHT=.*|GRUB_COLOR_HIGHLIGHT="white/darkred"|' /etc/default/grub
+else
+    echo 'GRUB_COLOR_HIGHLIGHT="white/darkred"' >> /etc/default/grub
+fi
+
+# Actualizar GRUB
+update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg
+log "GRUB configurado con tema satánico"
+
+########################################
+# 3. CONFIGURACIÓN DE TERMINAL – COLORES SATÁNICOS
+########################################
+step "4/14 – Configuración de Terminal Gnome con colores satánicos"
+
+# Configurar Gnome Terminal con colores rojos/negros satánicos
+sudo -u "$TARGET_USER" dconf write /org/gnome/terminal/legacy/theme-variant "'dark'" 2>/dev/null || true
+sudo -u "$TARGET_USER" dconf write /org/gnome/terminal/legacy/default-show-menubar false 2>/dev/null || true
+
+# Crear perfil de colores satánico para terminal
+PROFILES_PATH="/org/gnome/terminal/legacy/profiles"
+sudo -u "$TARGET_USER" dconf write "$PROFILES_PATH/list" "['b1dcc9f0-5025-404c-964d-1e4adf2cdc45']" 2>/dev/null || true
+sudo -u "$TARGET_USER" dconf write "$PROFILES_PATH/b1dcc9f0-5025-404c-964d-1e4adf2cdc45/background-color" "'rgb(12,12,12)'" 2>/dev/null || true
+sudo -u "$TARGET_USER" dconf write "$PROFILES_PATH/b1dcc9f0-5025-404c-964d-1e4adf2cdc45/foreground-color" "'rgb(220,220,220)'" 2>/dev/null || true
+sudo -u "$TARGET_USER" dconf write "$PROFILES_PATH/b1dcc9f0-5025-404c-964d-1e4adf2cdc45/cursor-background-color" "'rgb(170,0,0)'" 2>/dev/null || true
+sudo -u "$TARGET_USER" dconf write "$PROFILES_PATH/b1dcc9f0-5025-404c-964d-1e4adf2cdc45/cursor-foreground-color" "'rgb(255,255,255)'" 2>/dev/null || true
+
+# Paleta de colores satánica (16 colores: 8 normal + 8 brillante)
+PALETTE="['rgb(0,0,0)', 'rgb(170,0,0)', 'rgb(0,170,0)', 'rgb(170,85,0)', 'rgb(0,0,170)', 'rgb(170,0,170)', 'rgb(0,170,170)', 'rgb(170,170,170)', 'rgb(85,85,85)', 'rgb(255,85,85)', 'rgb(85,255,85)', 'rgb(255,255,85)', 'rgb(85,85,255)', 'rgb(255,85,255)', 'rgb(85,255,255)', 'rgb(255,255,255)']"
+sudo -u "$TARGET_USER" dconf write "$PROFILES_PATH/b1dcc9f0-5025-404c-964d-1e4adf2cdc45/palette" "$PALETTE" 2>/dev/null || true
+
+log "Terminal Gnome configurada con colores satánicos (rojo/negro)"
+
+########################################
+# 3A. FONDOS DE PANTALLA – TEMA SATÁNICO
+########################################
+step "4A/14 – Instalación de fondos de pantalla satánicos"
+
+# Crear directorio de fondos
+WALLPAPER_DIR="$USER_HOME/.local/share/backgrounds"
+mkdir -p "$WALLPAPER_DIR"
+
+# Instalar Python PIL para crear fondos
+apt-get install -y python3-pil 2>/dev/null || pip3 install pillow 2>/dev/null || true
+
+# Crear script para generar fondos satánicos
+cat > /tmp/create-satanic-wallpaper.py <<'PYWALLPAPER'
+#!/usr/bin/env python3
+import os
+import sys
+
+try:
+    from PIL import Image, ImageDraw
+except ImportError:
+    print("Error: PIL no instalado")
+    sys.exit(1)
+
+# Crear imagen satánica 1920x1080
+width, height = 1920, 1080
+img = Image.new('RGB', (width, height), color='black')
+draw = ImageDraw.Draw(img)
+
+# Degradado rojo-negro (de arriba a abajo)
+for y in range(height):
+    ratio = y / height
+    r = int(60 * (1 - ratio))  # Rojo oscuro
+    g = 0
+    b = 0
+    draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+# Agregar marco y detalles
+draw.rectangle([10, 10, width-10, height-10], outline=(100, 0, 0), width=3)
+draw.rectangle([20, 20, width-20, height-20], outline=(50, 0, 0), width=1)
+
+# Guardar fondos
+sistema_bg = "/usr/share/backgrounds/satanic-dark.png"
+user_bg = os.path.expanduser("~/.local/share/backgrounds/satanic-dark.png")
+
+img.save(user_bg)
+try:
+    img.save(sistema_bg)
+except:
+    pass
+
+print(f"Fondos creados: {user_bg}")
+PYWALLPAPER
+
+python3 /tmp/create-satanic-wallpaper.py 2>/dev/null || true
+
+# Descargar fondos oscuros adicionales
+WALLPAPER_DIR="$USER_HOME/.local/share/backgrounds"
+mkdir -p "$WALLPAPER_DIR"
+
+# Aplicar fondo de pantalla satánico
+if [ -f "$WALLPAPER_DIR/satanic-dark.png" ]; then
+    sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_DIR/satanic-dark.png" 2>/dev/null || true
+    sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_DIR/satanic-dark.png" 2>/dev/null || true
+fi
+
+# Configurar fondo de pantalla de bloqueo
+sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.screensaver picture-uri "file://$WALLPAPER_DIR/satanic-dark.png" 2>/dev/null || true
+sudo -u "$TARGET_USER" gsettings set org.gnome.desktop.screensaver picture-options "zoom" 2>/dev/null || true
+
+log "Fondos de pantalla satánicos instalados"
+
+########################################
+# 4. VISUAL STUDIO CODE CON TEMA SATÁNICO
+########################################
+step "5/14 – Visual Studio Code con tema satánico"
 if ! command -v code &>/dev/null; then
     # Limpiar fuentes duplicadas previas
     rm -f /etc/apt/sources.list.d/vscode.sources
@@ -97,20 +283,38 @@ if ! command -v code &>/dev/null; then
     apt-get update
     apt-get install -y code
     log "VS Code instalado"
+    
+    # Configurar tema satánico en VS Code
+    sleep 2
+    VS_CODE_DIR="$USER_HOME/.config/Code/User"
+    mkdir -p "$VS_CODE_DIR"
+    cat > "$VS_CODE_DIR/settings.json" <<'VSCODE'
+{
+    "workbench.colorTheme": "Dracula",
+    "editor.fontFamily": "Fira Code, Courier New",
+    "editor.fontSize": 12,
+    "editor.lightbulb.enabled": true,
+    "editor.formatOnSave": true,
+    "terminal.integrated.fontSize": 12,
+    "terminal.integrated.defaultProfile.linux": "bash"
+}
+VSCODE
+    chown "$TARGET_USER:$TARGET_USER" "$VS_CODE_DIR/settings.json"
+    log "Configuración satánica de VS Code aplicada"
 else
     log "VS Code ya instalado"
 fi
 
 ########################################
-# 4. NODE.JS (LTS)
+# 5. NODE.JS (LTS)
 ########################################
-step "4/14 – Node.js"
+step "6/14 – Node.js"
 if ! command -v node &>/dev/null; then
-    # Intentar NodeSource, si falla usar paquete de Debian
+    # Intentar NodeSource, si falla usar paquete de Ubuntu
     if curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - 2>/dev/null; then
         apt-get install -y nodejs
     else
-        warn "NodeSource no soporta Debian 13, instalando desde repos de Debian"
+        warn "NodeSource falló, instalando desde repos de Ubuntu"
         apt-get install -y nodejs npm
     fi
     log "Node.js instalado ($(node --version))"
@@ -119,33 +323,28 @@ else
 fi
 
 ########################################
-# 5. DOCKER CE (desde repo oficial)
+# 6. DOCKER CE (desde repo oficial para Ubuntu 24.04)
 ########################################
-step "5/14 – Docker"
+step "7/14 – Docker para Ubuntu 24.04"
 if ! command -v docker &>/dev/null; then
-    # Eliminar paquetes conflictivos de Debian
+    # Eliminar paquetes conflictivos
     for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do
         apt-get remove -y "$pkg" 2>/dev/null || true
     done
 
-    # Agregar repo oficial de Docker
+    # Agregar repo oficial de Docker para Ubuntu
     install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
     chmod a+r /etc/apt/keyrings/docker.asc
 
     ARCH=$(dpkg --print-architecture)
     CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-    # Debian 13 (trixie) puede no tener repo Docker oficial aún, usar bookworm como fallback
-    if [ "$CODENAME" = "trixie" ]; then
-        warn "Debian 13 detectado: usando repositorio Docker de bookworm (compatible)"
-        CODENAME="bookworm"
-    fi
-    echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $CODENAME stable" \
+    echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $CODENAME stable" \
         > /etc/apt/sources.list.d/docker.list
 
     apt-get update
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    log "Docker CE instalado"
+    log "Docker CE instalado para Ubuntu 24.04"
 else
     log "Docker ya instalado ($(docker --version))"
 fi
@@ -158,7 +357,7 @@ log "Usuario '$TARGET_USER' en grupo docker (requiere re-login para efecto)"
 ########################################
 # 6. PYTHON – PIP Y PAQUETES
 ########################################
-step "6/14 – Python pip y paquetes"
+step "8/14 – Python pip y paquetes"
 apt-get install -y python3-pip python3-venv 2>/dev/null || true
 pip3 install --break-system-packages --upgrade pip 2>/dev/null || pip3 install --upgrade pip
 pip3 install --break-system-packages jupyterlab fastapi uvicorn psutil 2>/dev/null \
@@ -170,7 +369,7 @@ log "Paquetes Python instalados"
 ########################################
 # 7. OLLAMA Y MODELOS
 ########################################
-step "7/14 – Ollama y modelos LLM"
+step "9/14 – Ollama y modelos LLM"
 if ! command -v ollama &>/dev/null; then
     curl -fsSL https://ollama.com/install.sh | sh
     log "Ollama instalado"
@@ -215,7 +414,7 @@ done
 ########################################
 # 8. CONTENEDORES DOCKER
 ########################################
-step "8/14 – Contenedores Docker"
+step "10/14 – Contenedores Docker"
 
 # Generar clave segura para Open WebUI (256-bit)
 WEBUI_SECRET_KEY=$(openssl rand -hex 32)
@@ -244,7 +443,7 @@ log "Contenedores base configurados"
 ########################################
 # 9. COMFYUI – GENERACIÓN DE IMÁGENES
 ########################################
-step "9/14 – ComfyUI (Stable Diffusion)"
+step "11/14 – ComfyUI (Stable Diffusion)"
 
 # Crear directorio para modelos
 mkdir -p "$USER_HOME/comfyui-data/models"
@@ -281,7 +480,7 @@ log "ComfyUI configurado (puerto 8188)"
 ########################################
 # 10. COQUI TTS – GENERACIÓN DE AUDIO
 ########################################
-step "10/14 – Coqui TTS (Text-to-Speech)"
+step "12/14 – Coqui TTS (Text-to-Speech)"
 
 mkdir -p "$USER_HOME/tts-data"
 
@@ -311,7 +510,7 @@ log "TTS configurado (OpenedAI: 5002, Piper: 5003)"
 ########################################
 # 11. ANIMATEDIFF – GENERACIÓN DE VIDEO
 ########################################
-step "11/14 – AnimateDiff (Text-to-Video)"
+step "13/14 – AnimateDiff (Text-to-Video)"
 
 mkdir -p "$USER_HOME/animatediff-data/output"
 mkdir -p "$USER_HOME/animatediff-data/models"
@@ -364,7 +563,7 @@ log "AnimateDiff configurado"
 ########################################
 # 12. AI AGENTS DE EJEMPLO
 ########################################
-step "12/14 – AI Agents de ejemplo"
+step "14/14 – AI Agents de ejemplo"
 mkdir -p "$USER_HOME/ai-agents"
 
 cat > "$USER_HOME/ai-agents/agents.py" <<'PYEOF'
@@ -384,7 +583,7 @@ log "agents.py creado"
 ########################################
 # 10. AI CONTROL CENTER + SERVICIOS
 ########################################
-step "13/14 – AI Control Center y servicios systemd"
+step "15/17 – AI Control Center y servicios systemd"
 mkdir -p "$USER_HOME/ai-control-center"
 
 cat > "$USER_HOME/ai-control-center/index.html" <<'HTMLEOF'
@@ -489,7 +688,7 @@ log "Servicios systemd configurados y activos"
 ########################################
 # 11. ACCESOS DIRECTOS GNOME
 ########################################
-step "14/14 – Accesos directos GNOME"
+step "16/17 – Accesos directos GNOME"
 mkdir -p "$USER_HOME/.local/share/applications"
 
 declare -A SHORTCUTS=(

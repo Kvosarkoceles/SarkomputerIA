@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Script para actualizar Debian y personalizar GNOME Flashback
+# Script para actualizar Ubuntu 24.04 y personalizar GNOME con temas satánicos
+# Compatible con múltiples GPUs (NVIDIA, AMD, Intel) - Sin conflictos
 # Autor: [Tu Nombre]
 # Fecha: $(date)
 
@@ -37,11 +38,47 @@ print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Función para verificar si estamos en Debian
-check_debian() {
-    if ! grep -q "Debian" /etc/os-release; then
-        print_error "Este script es solo para sistemas Debian."
+# ═══════════════════════════════════════════════════════════════
+# FUNCIÓN PARA APLICAR TEMAS SATÁNICOS
+# ═══════════════════════════════════════════════════════════════
+apply_satanic_themes() {
+    print_message "Aplicando temas satánicos..."
+    
+    # GNOME: Tema oscuro
+    run_as_user gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
+    
+    # Terminal: Colores satánicos (rojo/negro)
+    run_as_user dconf write /org/gnome/terminal/legacy/theme-variant "'dark'" 2>/dev/null || true
+    
+    # Fondo de pantalla satánico
+    SATANIC_BG="$REAL_HOME/.local/share/backgrounds/satanic-dark.png"
+    mkdir -p "$(dirname "$SATANIC_BG")"
+    
+    # Crear fondo satánico si no existe
+    if ! [ -f "$SATANIC_BG" ] && command -v convert &>/dev/null; then
+        convert -size 1920x1080 gradient:'#000000-#3d0000' "$SATANIC_BG" 2>/dev/null || true
+    fi
+    
+    if [ -f "$SATANIC_BG" ]; then
+        run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$SATANIC_BG" 2>/dev/null || true
+        run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$SATANIC_BG" 2>/dev/null || true
+    fi
+    
+    print_success "Temas satánicos aplicados (rojo/negro)"
+}
+
+# Función para verificar si estamos en Ubuntu
+check_ubuntu() {
+    if ! grep -qi "Ubuntu" /etc/os-release; then
+        print_error "Este script es solo para sistemas Ubuntu 24.04."
         exit 1
+    fi
+    
+    # Verificar versión Ubuntu 24.04+
+    UBUNTU_VERSION=$(grep "VERSION_ID" /etc/os-release | cut -d'"' -f2)
+    if [[ "$UBUNTU_VERSION" < "24.04" ]]; then
+        print_warning "Se recomienda Ubuntu 24.04 o superior. Versión actual: $UBUNTU_VERSION"
     fi
 }
 
@@ -53,46 +90,84 @@ check_root() {
     fi
 }
 
-# Detectar e instalar drivers de hardware
+# Detectar e instalar drivers de hardware SIN CONFLICTOS
 install_hardware_drivers() {
     print_message "Detectando hardware del sistema..."
     
     # ═══════════════════════════════════════════════════════════════
-    # DETECCIÓN DE GPU
+    # DETECCIÓN DE GPU (CON PREVENCIÓN DE CONFLICTOS)
     # ═══════════════════════════════════════════════════════════════
     
-    # Detectar GPU NVIDIA
-    if lspci | grep -qi "nvidia"; then
-        print_message "GPU NVIDIA detectada"
-        if ! command -v nvidia-smi &>/dev/null; then
-            print_message "Instalando drivers NVIDIA..."
-            apt install -y nvidia-driver nvidia-settings nvidia-cuda-toolkit 2>/dev/null || \
-            apt install -y nvidia-driver 2>/dev/null || \
-            print_warning "No se pudo instalar driver NVIDIA - puede requerir repo non-free"
-        else
-            print_success "Driver NVIDIA ya instalado ($(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null || echo 'OK'))"
-        fi
+    # Usar ubuntu-drivers para instalación segura
+    if command -v ubuntu-drivers &>/dev/null; then
+        print_message "Usando ubuntu-drivers para instalación segura de drivers..."
         
-        # Verificar CUDA
-        if ! command -v nvcc &>/dev/null; then
-            apt install -y nvidia-cuda-toolkit 2>/dev/null || true
+        # Detectar y listar dispositivos
+        DETECTED_DEVICES=$(ubuntu-drivers devices 2>/dev/null | grep -E "driver :" | head -1)
+        
+        if [ -n "$DETECTED_DEVICES" ]; then
+            print_message "Dispositivos detectados: $DETECTED_DEVICES"
+            
+            # Instalar recomendado (solo instala lo compatible)
+            ubuntu-drivers autoinstall 2>/dev/null && \
+            print_success "Drivers instalados via ubuntu-drivers" || \
+            print_warning "ubuntu-drivers no pudo instalar automáticamente"
         fi
     fi
     
-    # Detectar GPU AMD
-    if lspci | grep -qi "amd.*radeon\|amd.*vega\|amd.*navi\|amd.*rx"; then
+    # Detección manual con prevención de conflictos
+    print_message "Verificando GPUs disponibles..."
+    
+    HAS_NVIDIA=false
+    HAS_AMD=false
+    HAS_INTEL=false
+    
+    # Detectar GPU NVIDIA
+    if lspci 2>/dev/null | grep -qi "nvidia"; then
+        print_message "GPU NVIDIA detectada"
+        HAS_NVIDIA=true
+        
+        # Desinstalar driver nouveau conflictivo ANTES de instalar NVIDIA
+        if lsmod 2>/dev/null | grep -q "nouveau"; then
+            print_warning "Driver opengl 'nouveau' detectado, desinstalando..."
+            apt remove -y xserver-xorg-video-nouveau 2>/dev/null || true
+            modprobe -r nouveau 2>/dev/null || true
+        fi
+        
+        # Agregar repo de NVIDIA si es necesario
+        if ! dpkg -l | grep -q "nvidia-driver-"; then
+            print_message "Instalando drivers NVIDIA (a través de ubuntu-drivers)..."
+            # Intentar instalar vía ubuntu-drivers primero
+            if ! ubuntu-drivers autoinstall 2>/dev/null; then
+                # Fallback: instalar genérico
+                apt install -y nvidia-driver 2>/dev/null || \
+                print_warning "No se pudo instalar driver NVIDIA - puede requerir instalación manual"
+            fi
+        else
+            NVIDIA_VERSION=$(dpkg -l | grep nvidia-driver | awk '{print $3}' | tail -1)
+            print_success "Driver NVIDIA ya instalado (v$NVIDIA_VERSION)"
+        fi
+    fi
+    
+    # Detectar GPU AMD (Radeon/RDNA/NAVI)
+    if lspci 2>/dev/null | grep -qi "amd.*radeon\|amd.*vega\|amd.*navi\|amd.*wcn"; then
         print_message "GPU AMD detectada"
+        HAS_AMD=true
+        
+        # Solo instalar firmware, no drivers conflictivos
+        print_message "Instalando soporte AMD (firmware, no driver de kernel)..."
         apt install -y firmware-amd-graphics mesa-vulkan-drivers libvulkan1 2>/dev/null || true
-        # ROCm para ML (opcional)
-        # apt install -y rocm-opencl-runtime 2>/dev/null || true
+        apt install -y libdrm-amdgpu1 2>/dev/null || true
         print_success "Drivers AMD configurados"
     fi
     
-    # Detectar GPU Intel
-    if lspci | grep -qi "intel.*graphics\|intel.*uhd\|intel.*iris"; then
+    # Detectar GPU Intel (UHD, Iris, Xe)
+    if lspci 2>/dev/null | grep -qi "intel.*graphics\|intel.*uhd\|intel.*iris\|intel.*xe"; then
         print_message "GPU Intel detectada"
+        HAS_INTEL=true
+        
+        print_message "Instalando soporte Intel..."
         apt install -y intel-media-va-driver mesa-vulkan-drivers libvulkan1 2>/dev/null || true
-        # Para CPUs Intel recientes con Xe
         apt install -y intel-gpu-tools 2>/dev/null || true
         print_success "Drivers Intel configurados"
     fi
@@ -105,39 +180,39 @@ install_hardware_drivers() {
     print_message "Verificando firmware WiFi..."
     
     # Intel WiFi
-    if lspci | grep -qi "intel.*wireless\|intel.*wifi\|intel.*centrino"; then
+    if lspci 2>/dev/null | grep -qi "intel.*wireless\|intel.*wifi\|intel.*centrino"; then
         apt install -y firmware-iwlwifi 2>/dev/null || true
         print_success "Firmware Intel WiFi instalado"
     fi
     
     # Realtek WiFi
-    if lspci | grep -qi "realtek.*rtl\|realtek.*wireless"; then
+    if lspci 2>/dev/null | grep -qi "realtek.*rtl\|realtek.*wireless"; then
         apt install -y firmware-realtek 2>/dev/null || true
         print_success "Firmware Realtek instalado"
     fi
     
     # Broadcom WiFi (común en laptops)
-    if lspci | grep -qi "broadcom.*bcm\|broadcom.*wireless"; then
+    if lspci 2>/dev/null | grep -qi "broadcom.*bcm\|broadcom.*wireless"; then
         apt install -y firmware-brcm80211 2>/dev/null || \
         apt install -y broadcom-sta-dkms 2>/dev/null || true
         print_success "Firmware Broadcom instalado"
     fi
     
     # Atheros/Qualcomm WiFi
-    if lspci | grep -qi "atheros\|qualcomm.*ath"; then
+    if lspci 2>/dev/null | grep -qi "atheros\|qualcomm.*ath"; then
         apt install -y firmware-atheros firmware-ath9k-htc 2>/dev/null || true
         print_success "Firmware Atheros instalado"
     fi
     
     # MediaTek WiFi
-    if lspci | grep -qi "mediatek\|ralink"; then
+    if lspci 2>/dev/null | grep -qi "mediatek\|ralink"; then
         apt install -y firmware-misc-nonfree 2>/dev/null || true
         print_success "Firmware MediaTek instalado"
     fi
     
     # Bluetooth
     print_message "Verificando Bluetooth..."
-    if lsusb 2>/dev/null | grep -qi "bluetooth" || lspci | grep -qi "bluetooth"; then
+    if lsusb 2>/dev/null | grep -qi "bluetooth" || lspci 2>/dev/null | grep -qi "bluetooth"; then
         apt install -y bluetooth bluez bluez-tools blueman 2>/dev/null || true
         systemctl enable bluetooth 2>/dev/null || true
         systemctl start bluetooth 2>/dev/null || true
@@ -151,7 +226,7 @@ install_hardware_drivers() {
     print_message "Verificando audio..."
     
     # PipeWire (moderno) o PulseAudio
-    if ! command -v pipewire &>/dev/null; then
+    if ! command -v pw-cli &>/dev/null; then
         apt install -y pipewire pipewire-audio pipewire-pulse wireplumber 2>/dev/null || \
         apt install -y pulseaudio pulseaudio-utils pavucontrol 2>/dev/null || true
     fi
@@ -222,7 +297,10 @@ install_hardware_drivers() {
     # ═══════════════════════════════════════════════════════════════
     
     print_message "Instalando firmware adicional..."
-    apt install -y firmware-linux firmware-linux-nonfree firmware-misc-nonfree 2>/dev/null || true
+    apt install -y firmware-linux 2>/dev/null || true
+    
+    # Mucode (Intel/AMD) - a menudo necesario
+    apt install -y amd64-microcode intel-microcode 2>/dev/null || true
     
     # ═══════════════════════════════════════════════════════════════
     # VERIFICAR HARDWARE SIN DRIVER
@@ -246,7 +324,7 @@ install_hardware_drivers() {
     print_success "Verificación de hardware completada"
 }
 
-# Actualizar sistema Debian
+# Actualizar sistema Ubuntu 24.04
 update_system() {
     print_message "Limpiando repositorios duplicados..."
     # Eliminar archivo contrib.list si existe y está duplicado con sources.list
@@ -264,14 +342,14 @@ update_system() {
     print_message "Actualizando distribuciones..."
     apt dist-upgrade -y
     
-    print_message "Instalando dependencias base para temas..."
-    apt install -y imagemagick fonts-dejavu dconf-cli 2>/dev/null || true
+    print_message "Instalando dependencias base..."
+    apt install -y imagemagick fonts-dejavu dconf-cli ubuntu-drivers-common 2>/dev/null || true
     
     print_message "Limpiando paquetes innecesarios..."
     apt autoremove -y
     apt autoclean
     
-    print_success "Sistema actualizado completamente."
+    print_success "Sistema Ubuntu 24.04 actualizado completamente."
 }
 
 # Instalar y configurar GNOME Flashback con mejoras
@@ -298,11 +376,11 @@ install_gnome_tweaks() {
     print_success "Componentes de GNOME instalados."
 }
 
-# Configurar temas y animaciones
+# Configurar temas y animaciones con estilos satánicos
 configure_themes_and_animations() {
-    print_message "Instalando temas modernos..."
+    print_message "Instalando temas modernos (Ubuntu 24.04)..."
     
-    # Instalar temas populares (compatibles con Debian 13)
+    # Instalar temas populares (compatibles con Ubuntu 24.04)
     apt install -y \
         adwaita-icon-theme \
         arc-theme \
@@ -1082,10 +1160,10 @@ PLYSCRIPT
 
 # Función principal
 main() {
-    print_message "Iniciando script de actualización y personalización..."
+    print_message "Iniciando script de actualización y personalización Ubuntu 24.04..."
     
     # Verificaciones iniciales
-    check_debian
+    check_ubuntu
     check_root
     
     # Paso 1: Actualizar sistema
@@ -1093,6 +1171,9 @@ main() {
     
     # Paso 2: Detectar e instalar drivers de hardware
     install_hardware_drivers
+    
+    # Paso 2B: Aplicar temas satánicos
+    apply_satanic_themes
     
     # Paso 3: Instalar GNOME Tweaks
     install_gnome_tweaks
@@ -1127,23 +1208,26 @@ main() {
     print_success "¡Proceso completado!"
     echo ""
     print_message "════════════════════════════════════════════════════════"
-    print_message "  🤖 AI DEVELOPER SYSTEM - Configuración completada"
+    print_message "  🤖 UBUNTU 24.04 AI DEVELOPER - Configuración completada"
     print_message "════════════════════════════════════════════════════════"
     print_message ""
     print_message "Personalizaciones aplicadas:"
-    print_message "  • Hardware: Drivers GPU, WiFi, Bluetooth, Audio"
+    print_message "  • Sistema: Ubuntu 24.04 LTS actualizado"
+    print_message "  • Drivers: GPU (NVIDIA/AMD/Intel), WiFi, Audio (sin conflictos)"
+    print_message "  • Temas: Satánicos (rojo/negro) en GNOME, Terminal, Fondos"
     print_message "  • Iconos: Tela/Reversal/Kora (modernos con gradientes)"
     print_message "  • Terminal: Tema cyberpunk con prompt personalizado"
     print_message "  • GRUB: Tema oscuro con estilo desarrollo"
     print_message "  • Plymouth: Splash de arranque AI Developer"
-    print_message "  • Escritorio: Temas Nordic/Arc oscuros"
     print_message ""
     print_message "Recomendaciones:"
     print_message "  1. REINICIA tu sistema para ver todos los cambios"
-    print_message "  2. Usa 'gnome-tweaks' y 'dconf-editor' para ajustes"
-    print_message "  3. Ejecuta 'source ~/.bashrc' para aplicar terminal ahora"
-    print_message "  4. Usa 'ccsm' (CompizConfig) para efectos de ventanas"
-    print_message "  5. Ejecuta 'sensors' para ver temperaturas del sistema"
+    print_message "  2. Si tienes GPU NVIDIA, reinicia para cargar drivers"
+    print_message "  3. Usa 'gnome-tweaks' y 'dconf-editor' para ajustes"
+    print_message "  4. Ejecuta 'source ~/.bashrc' para aplicar terminal ahora"
+    print_message "  5. Usa 'ccsm' (CompizConfig) para efectos de ventanas"
+    print_message "  6. Ejecuta 'nvidia-smi' si tienes NVIDIA (verificar drivers)"
+    print_message "  7. Ejecuta 'sensors' para ver temperaturas del sistema"
 }
 
 # Ejecutar función principal

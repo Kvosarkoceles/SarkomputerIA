@@ -3,9 +3,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Script para crear ISO personalizada de Debian instalado
+# Script para crear ISO personalizada de Ubuntu 24.04
+# Con temas satánicos: GRUB, Terminal, GNOME, Fondos
 # Autor: [Tu Nombre]
-# Uso: sudo ./create-custom-iso.sh
+# Uso: sudo ./create-custom-distro.sh
 
 # Colores para mensajes
 RED='\033[0;31m'
@@ -17,9 +18,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # Sin color
 
 # Variables configurables
-ISO_NAME="custom-debian"
-ISO_VERSION="1.0"
-ISO_LABEL="CUSTOM_DEBIAN"
+ISO_NAME="custom-ubuntu-satanic"
+ISO_VERSION="24.04"
+ISO_LABEL="UBUNTU_SATANIC"
 ISO_DIR="/tmp/custom-iso"
 LIVE_DIR="$ISO_DIR/live"
 WORK_DIR="/tmp/iso-work"
@@ -29,10 +30,10 @@ if [ -n "$SUDO_USER" ]; then
 else
     OUTPUT_DIR="$HOME/Documentos"
 fi
-CUSTOM_NAME="MyCustomDebian"
-HOSTNAME="mycustomdebian"
-USERNAME="debianuser"
-PASSWORD="debian"
+CUSTOM_NAME="Ubuntu Satanic"
+HOSTNAME="ubuntu-satanic"
+USERNAME="satanic"
+PASSWORD="satanic666"
 TIMEZONE="America/Mexico_City"
 KEYBOARD="latam"
 LOCALE="es_MX.UTF-8"
@@ -166,10 +167,10 @@ prepare_directories() {
 create_base_system() {
     step "Creando sistema base con debootstrap..."
     
-    local debian_version="trixie"  # Debian 13
+    local ubuntu_version="noble"  # Ubuntu 24.04 LTS
     local arch="amd64"
     
-    info "Creando sistema base Debian $debian_version $arch..."
+    info "Creando sistema base Ubuntu 24.04 $arch..."
     if ! command -v debootstrap >/dev/null 2>&1; then
         info "debootstrap no encontrado; intentando instalar debootstrap..."
         apt update || true
@@ -180,16 +181,16 @@ create_base_system() {
         --arch=$arch \
         --variant=minbase \
         --include=systemd,systemd-sysv,udev \
-        $debian_version \
+        $ubuntu_version \
         $WORK_DIR \
-        http://deb.debian.org/debian/
+        http://archive.ubuntu.com/ubuntu/
     
     if [ $? -ne 0 ]; then
         error "Error al crear sistema base con debootstrap"
         exit 1
     fi
     
-    success "Sistema base creado"
+    success "Sistema base Ubuntu 24.04 creado"
 }
 
 # Copiar configuración actual del sistema
@@ -299,6 +300,134 @@ EOF
     success "Sistema configurado para Live"
 }
 
+########################################
+# CONFIGURAR TEMAS SATÁNICOS
+########################################
+configure_satanic_themes() {
+    step "Configurando temas satánicos (GNOME, GRUB, Terminal, Fondos)..."
+    
+    # Crear directorio para setup
+    mkdir -p $WORK_DIR/tmp/setup
+    
+    # Instalar herramientas necesarias para temas
+    chroot $WORK_DIR bash -c "export DEBIAN_FRONTEND=noninteractive; apt install -y --no-install-recommends dconf-cli gnome-shell-extensions python3-pil 2>/dev/null" || true
+    
+    # Descargar e instalar Dracula theme
+    info "Instalando tema Dracula Dark..."
+    cd /tmp && rm -rf dracula-gtk 2>/dev/null || true
+    git clone --depth 1 https://github.com/dracula/gtk.git dracula-gtk 2>/dev/null || true
+    if [ -d dracula-gtk ]; then
+        mkdir -p $WORK_DIR/usr/share/themes
+        cp -r dracula-gtk/Dracula* $WORK_DIR/usr/share/themes/ 2>/dev/null || true
+        log "Tema Dracula Dark instalado"
+    fi
+    
+    # Crear tema personalizado de GRUB satánico
+    info "Creando tema GRUB satánico..."
+    mkdir -p $WORK_DIR/boot/grub/themes/Satanic
+    cat > $WORK_DIR/boot/grub/themes/Satanic/theme.txt << 'GRUBTHEME'
+# GRUB2 Satanic Theme - Demonic Edition
+
+desktop-image: ""
+desktop-color: "#000000"
+
+terminal-border: "0"
+terminal-left: "0"
+terminal-right: "0"
+terminal-top: "0"
+terminal-bottom: "0"
+
+title-text: "🔥 UBUNTU SATANIC 24.04 🔥"
+title-font: "Unifont Regular 16"
+title-color: "#AA0000"
+
+menu-border: "0"
+left: "0"
+top: "0"
+width: "100%"
+height: "100%"
+
+text-color: "#CCCCCC"
+highlight-color: "#660000"
+highlight-text-color: "#FFFFFF"
+GRUBTHEME
+    
+    # Actualizar configuración de GRUB
+    info "Actualizando configuración de GRUB con tema satánico..."
+    cat >> $WORK_DIR/etc/default/grub << 'GRUB_EOF'
+
+# Temas Satánicos
+GRUB_THEME="/boot/grub/themes/Satanic/theme.txt"
+GRUB_COLOR_NORMAL="darkred/black"
+GRUB_COLOR_HIGHLIGHT="white/darkred"
+GRUB_EOF
+    
+    # Crear script Python para generar fondos satánicos
+    info "Preparando fondos de pantalla satánicos..."
+    mkdir -p $WORK_DIR/usr/share/backgrounds
+    cat > $WORK_DIR/tmp/create_wallpapers.py << 'WALLPAPER_EOF'
+#!/usr/bin/env python3
+import os
+try:
+    from PIL import Image, ImageDraw
+except ImportError:
+    import subprocess
+    subprocess.run(["pip3", "install", "pillow"], check=False)
+    from PIL import Image, ImageDraw
+
+# Crear fondos satánicos en diferentes resoluciones
+resolutions = [(1920, 1080), (1280, 720), (2560, 1440), (3840, 2160)]
+for width, height in resolutions:
+    img = Image.new('RGB', (width, height), color='black')
+    draw = ImageDraw.Draw(img)
+    
+    # Degradado rojo-negro (arriba a abajo)
+    for y in range(height):
+        ratio = y / height
+        r = int(60 * (1 - ratio))
+        draw.line([(0, y), (width, y)], fill=(r, 0, 0))
+    
+    # Agregar marco
+    draw.rectangle([10, 10, width-10, height-10], outline=(100, 0, 0), width=3)
+    
+    img.save(f"/usr/share/backgrounds/satanic-{width}x{height}.png")
+
+print("Fondos satánicos creados exitosamente")
+WALLPAPER_EOF
+    
+    chmod +x $WORK_DIR/tmp/create_wallpapers.py
+    chroot $WORK_DIR python3 /tmp/create_wallpapers.py 2>/dev/null || true
+    
+    # Crear script de configuración de terminal con colores satánicos
+    info "Configurando colores satánicos para Terminal Gnome..."
+    cat > $WORK_DIR/tmp/setup_terminal_colors.sh << 'TERMINAL_EOF'
+#!/bin/bash
+# Configurar colores satánicos en dconf para todos los usuarios
+PROFILES_PATH="/org/gnome/terminal/legacy/profiles"
+
+# Para el usuario root si existe
+if [ -d /root ]; then
+    dbus_session="/run/user/0/bus" 2>/dev/null || true
+    [ -S "$dbus_session" ] && export DBUS_SESSION_BUS_ADDRESS="unix:path=$dbus_session"
+fi
+
+# Aplicar tema oscuro a nivel del sistema
+for user_home in /home/*; do
+    [ -d "$user_home" ] || continue
+    user=$(basename "$user_home")
+    user_id=$(id -u "$user" 2>/dev/null || echo "")
+    [ -z "$user_id" ] && continue
+    
+    sudo -u "$user" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$user_id/bus" dconf write /org/gnome/terminal/legacy/theme-variant "'dark'" 2>/dev/null || true
+done
+TERMINAL_EOF
+    
+    chmod +x $WORK_DIR/tmp/setup_terminal_colors.sh
+    chroot $WORK_DIR bash /tmp/setup_terminal_colors.sh 2>/dev/null || true
+    
+    success "Temas satánicos configurados exitosamente"
+}
+
 # Crear usuario personalizado
 create_custom_user() {
     step "Creando usuario personalizado..."
@@ -369,7 +498,7 @@ install_additional_packages() {
 
     # Keep chroot package list minimal to avoid large desktop dependency chains
     local packages=(
-        linux-image-amd64
+        linux-image-generic
         network-manager
         wpasupplicant
         net-tools
@@ -384,6 +513,10 @@ install_additional_packages() {
         live-boot
         live-config
         live-tools
+        dconf-cli
+        gnome-shell-extensions
+        python3-pil
+        git
     )
 
     local optional_packages=(
@@ -939,7 +1072,7 @@ show_summary() {
     
     echo -e "${GREEN}"
     echo "╔══════════════════════════════════════════════════════╗"
-    echo "║          DISTRIBUCIÓN PERSONALIZADA CREADA         ║"
+    echo "║   UBUNTU 24.04 SATÁNICA CREADA EXITOSAMENTE 🔥    ║"
     echo "╠══════════════════════════════════════════════════════╣"
     echo "║ Nombre: $CUSTOM_NAME"
     echo "║ Versión: $ISO_VERSION"
@@ -969,10 +1102,14 @@ show_summary() {
     warning "   Bootea desde USB/DVD y selecciona 'Instalar'"
     
     info "Características incluidas:"
-    info "✓ Sistema base Debian Trixie"
+    info "✓ Ubuntu 24.04 LTS (noble)"
     info "✓ Kernel Linux actualizado"
-    info "✓ Entorno GNOME completo"
-    info "✓ Firefox, herramientas básicas"
+    info "✓ Entorno GNOME con tema Dracula Dark"
+    info "✓ Temas Satánicos:"
+    info "  • GRUB: tema personalizado con colores rojos/negro"
+    info "  • Terminal: colores satánicos (rojo/negro)"
+    info "  • Fondos: degradado satánico (múltiples resoluciones)"
+    info "  • Tema GNOME: Dracula Dark"
     info "✓ Usuario $USERNAME preconfigurado"
     info "✓ Configuración regional $LOCALE"
     info "✓ Boot UEFI y Legacy BIOS"
@@ -983,7 +1120,7 @@ show_summary() {
 main() {
     echo -e "${GREEN}"
     echo "╔══════════════════════════════════════════════════════╗"
-    echo "║    CREADOR DE DISTRIBUCIÓN PERSONALIZADA DEBIAN    ║"
+    echo "║  CREADOR DE DISTRIBUCIÓN UBUNTU 24.04 SATÁNICA     ║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     
@@ -996,6 +1133,7 @@ main() {
     info "Nombre: $CUSTOM_NAME $ISO_VERSION"
     info "Usuario: $USERNAME / $PASSWORD"
     info "Hostname: $HOSTNAME"
+    info "Temas: Satánicos (GRUB, GNOME, Terminal, Fondos)"
     info "Directorio salida: $OUTPUT_DIR"
     
     # Modo automatizado: continuar sin confirmación interactiva
@@ -1009,6 +1147,7 @@ main() {
     prepare_directories
     create_base_system
     configure_live_system
+    configure_satanic_themes
     install_additional_packages
     create_custom_user
     configure_live_boot

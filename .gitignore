@@ -1,0 +1,14 @@
+# Runtime and sensitive files for the Telegram agent
+telegram ia/ai_lab/agent/.env
+telegram ia/ai_lab/agent/__pycache__/
+telegram ia/ai_lab/logs/
+telegram ia/ai_lab/memory/
+
+# General
+*.log
+*.tmp
+__pycache__/
+*.pyc
+
+# Examples build artifacts
+examples/no-gui-services/*.tmp

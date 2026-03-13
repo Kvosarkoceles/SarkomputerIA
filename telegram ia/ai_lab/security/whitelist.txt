@@ -1,0 +1,4 @@
+# IDs de Telegram autorizados (uno por linea)
+# Ejemplo:
+# 123456789
+7915204188

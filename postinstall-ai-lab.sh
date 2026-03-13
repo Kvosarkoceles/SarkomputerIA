@@ -351,6 +351,28 @@ fi
 
 # Asegurar servicio activo y usuario en grupo docker
 systemctl enable --now docker
+
+# Si hay GPU NVIDIA, configurar runtime NVIDIA en Docker
+if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+    step "7A/14 – NVIDIA Container Toolkit para Docker"
+    install -m 0755 -d /usr/share/keyrings
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+        | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+        | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+        > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    apt-get update
+    apt-get install -y nvidia-container-toolkit
+    nvidia-ctk runtime configure --runtime=docker
+    systemctl restart docker
+
+    if docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q 'nvidia'; then
+        log "Runtime NVIDIA en Docker configurado"
+    else
+        warn "No se pudo validar runtime NVIDIA en Docker"
+    fi
+fi
+
 usermod -aG docker "$TARGET_USER" 2>/dev/null || true
 log "Usuario '$TARGET_USER' en grupo docker (requiere re-login para efecto)"
 
@@ -449,30 +471,29 @@ step "11/14 – ComfyUI (Stable Diffusion)"
 mkdir -p "$USER_HOME/comfyui-data/models"
 mkdir -p "$USER_HOME/comfyui-data/output"
 
-# Detectar si hay GPU NVIDIA disponible
+# Detectar si hay GPU NVIDIA usable desde Docker
 HAS_GPU=false
 if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
-    HAS_GPU=true
-    log "GPU NVIDIA detectada"
+    if docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q 'nvidia'; then
+        HAS_GPU=true
+        log "GPU NVIDIA detectada y runtime Docker NVIDIA disponible"
+    else
+        warn "Se detectó NVIDIA en host, pero Docker no tiene runtime NVIDIA configurado"
+    fi
 fi
 
 if [ "$HAS_GPU" = true ]; then
     ensure_container "comfyui" \
         --gpus all \
         -p 8188:8188 \
+        -p 1111:1111 \
         -v "$USER_HOME/comfyui-data/models:/app/models" \
         -v "$USER_HOME/comfyui-data/output:/app/output" \
         ghcr.io/ai-dock/comfyui:latest 2>/dev/null || \
         warn "ComfyUI con GPU falló"
 else
-    warn "Sin GPU NVIDIA - ComfyUI funcionará en modo CPU (lento)"
-    ensure_container "comfyui" \
-        -p 8188:8188 \
-        -v "$USER_HOME/comfyui-data/models:/app/models" \
-        -v "$USER_HOME/comfyui-data/output:/app/output" \
-        -e PYTORCH_ENABLE_MPS_FALLBACK=1 \
-        ghcr.io/ai-dock/comfyui:latest 2>/dev/null || \
-        warn "ComfyUI no pudo iniciarse - instalar manualmente si se necesita"
+    warn "ComfyUI omitido: esta imagen requiere backend NVIDIA funcional en Docker"
+    warn "Si quieres ComfyUI, instala NVIDIA Container Toolkit o usa una imagen CPU dedicada"
 fi
 
 log "ComfyUI configurado (puerto 8188)"
@@ -484,18 +505,80 @@ step "12/14 – Coqui TTS (Text-to-Speech)"
 
 mkdir -p "$USER_HOME/tts-data"
 
+# Configuracion por defecto para voz en espanol latino
+OPENEDAI_SPEECH_VOICE="${OPENEDAI_SPEECH_VOICE:-latam}"
+OPENEDAI_SPEECH_LANG="${OPENEDAI_SPEECH_LANG:-es-419}"
+OPENEDAI_SPEECH_FORMAT="${OPENEDAI_SPEECH_FORMAT:-opus}"
+
 # Coqui TTS oficial está deprecado, usar alternativas mantenidas
 # Opción 1: OpenedAI Speech (compatible con API OpenAI TTS)
 if ! docker ps -a --format '{{.Names}}' | grep -qx "openedai-speech"; then
     log "Instalando OpenedAI Speech (alternativa moderna a Coqui)..."
     ensure_container "openedai-speech" \
-        -p 5002:5002 \
+        -p 5002:8000 \
+                -e DEFAULT_VOICE="$OPENEDAI_SPEECH_VOICE" \
+                -e DEFAULT_LANGUAGE="$OPENEDAI_SPEECH_LANG" \
         -v "$USER_HOME/tts-data:/app/voices" \
         ghcr.io/matatonic/openedai-speech:latest 2>/dev/null || \
         warn "OpenedAI Speech no pudo iniciarse"
 else
     log "OpenedAI Speech ya configurado"
 fi
+
+# Garantizar voz personalizada 'latam' en openedai-speech (modelo XTTS en espanol)
+if docker ps -a --format '{{.Names}}' | grep -qx "openedai-speech"; then
+    if ! docker exec openedai-speech sh -lc "grep -q '^  latam:' /app/config/voice_to_speaker.yaml" 2>/dev/null; then
+        docker exec openedai-speech sh -lc "python3 - <<'PY'
+from pathlib import Path
+p = Path('/app/config/voice_to_speaker.yaml')
+s = p.read_text(encoding='utf-8')
+needle = 'tts-1-hd:\n'
+idx = s.find(needle)
+if idx == -1:
+    raise SystemExit('No se encontro seccion tts-1-hd en voice_to_speaker.yaml')
+insert = (
+    '  latam:\n'
+    '    model: xtts_v2.0.2\n'
+    '    speaker: voices/nova.wav\n'
+    '    language: es\n'
+    '    enable_text_splitting: True\n'
+    '    speed: 1.08\n'
+)
+if '\n  latam:\n' not in s:
+    s = s[:idx + len(needle)] + insert + s[idx + len(needle):]
+    p.write_text(s, encoding='utf-8')
+PY" 2>/dev/null || warn "No se pudo inyectar voz 'latam' en openedai-speech"
+        docker restart openedai-speech >/dev/null 2>&1 || true
+        log "Voz personalizada 'latam' creada en openedai-speech"
+    else
+        log "Voz personalizada 'latam' ya existe en openedai-speech"
+    fi
+fi
+
+# Script helper para sintetizar siempre en espanol latino con OpenedAI Speech
+mkdir -p "$USER_HOME/ai-agents"
+cat > "$USER_HOME/ai-agents/openedai_speech_latam.sh" <<'TTSLATAM'
+#!/usr/bin/env bash
+set -euo pipefail
+
+TEXT="${1:-Hola, esta es una respuesta en espanol latino.}"
+OUT="${2:-./tts-latam.opus}"
+VOICE="${OPENEDAI_SPEECH_VOICE:-latam}"
+MODEL="${OPENEDAI_SPEECH_MODEL:-tts-1-hd}"
+FORMAT="${OPENEDAI_SPEECH_FORMAT:-opus}"
+
+curl -sS http://localhost:5002/v1/audio/speech \
+    -H 'Content-Type: application/json' \
+    -d "{\"model\":\"${MODEL}\",\"input\":\"${TEXT}\",\"voice\":\"${VOICE}\",\"response_format\":\"${FORMAT}\"}" \
+    --output "${OUT}"
+
+echo "Audio generado en: ${OUT}"
+echo "Voz usada: ${VOICE}"
+echo "Modelo usado: ${MODEL}"
+echo "Formato usado: ${FORMAT}"
+TTSLATAM
+chmod +x "$USER_HOME/ai-agents/openedai_speech_latam.sh"
+chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/ai-agents/openedai_speech_latam.sh"
 
 # Opción 2: Piper TTS (muy ligero y rápido)
 ensure_container "piper-tts" \
@@ -506,6 +589,7 @@ ensure_container "piper-tts" \
     warn "Piper TTS no pudo iniciarse (opcional)"
 
 log "TTS configurado (OpenedAI: 5002, Piper: 5003)"
+log "OpenedAI Speech preparado para espanol latino (voz por defecto: $OPENEDAI_SPEECH_VOICE)"
 
 ########################################
 # 11. ANIMATEDIFF – GENERACIÓN DE VIDEO
@@ -616,7 +700,7 @@ h1 {color:#0ff; margin-bottom:10px;}
 <div class="grid">
 <div class="card media" onclick="comfyui()"><div class="icon">🎨</div>ComfyUI<br><small>Imágenes</small></div>
 <div class="card media" onclick="tts()"><div class="icon">🔊</div>OpenedAI Speech<br><small>Voces API</small></div>
-<div class="card media" onclick="piper()"><div class="icon">🎤</div>Piper TTS<br><small>Voces rápidas</small></div>
+<div class="card media" onclick="piper()"><div class="icon">🎤</div>Piper TTS<br><small>Protocolo Wyoming</small></div>
 </div>
 <p class="section-title">Monitoreo y Almacenamiento</p>
 <div class="grid">
@@ -630,7 +714,7 @@ function ollama(){window.open("http://localhost:11434")}
 function jupyter(){window.open("http://localhost:8888")}
 function comfyui(){window.open("http://localhost:8188")}
 function tts(){window.open("http://localhost:5002")}
-function piper(){window.open("http://localhost:5003")}
+function piper(){alert("Piper TTS usa protocolo Wyoming (no interfaz web en /). Endpoint: localhost:5003")}
 function grafana(){window.open("http://localhost:3000")}
 function prom(){window.open("http://localhost:9090")}
 function minio(){window.open("http://localhost:9001")}
@@ -674,7 +758,7 @@ After=network.target
 User=$TARGET_USER
 Environment=HOME=$USER_HOME
 WorkingDirectory=$USER_HOME
-ExecStart=/usr/bin/env jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --ServerApp.token='' --ServerApp.password=''
+ExecStart=/usr/bin/env python3 -m jupyterlab --ip=0.0.0.0 --port=8888 --no-browser --ServerApp.token='' --ServerApp.password=''
 Restart=always
 [Install]
 WantedBy=multi-user.target
@@ -697,7 +781,7 @@ declare -A SHORTCUTS=(
     ["jupyter-ai"]="JupyterLab|http://localhost:8888|applications-science"
     ["comfyui-ai"]="ComfyUI Imágenes|http://localhost:8188|applications-graphics"
     ["openedai-speech"]="OpenedAI Speech|http://localhost:5002|audio-x-generic"
-    ["piper-tts"]="Piper TTS|http://localhost:5003|audio-speakers"
+    ["piper-tts"]="Piper TTS (Wyoming)|http://localhost:5003|audio-speakers"
     ["grafana-ai"]="Grafana Monitoring|http://localhost:3000|utilities-system-monitor"
     ["prometheus-ai"]="Prometheus Metrics|http://localhost:9090|utilities-system-monitor"
     ["minio-ai"]="MinIO Storage|http://localhost:9001|folder-cloud"

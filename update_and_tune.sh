@@ -43,10 +43,22 @@ print_warning() {
 # ═══════════════════════════════════════════════════════════════
 apply_satanic_themes() {
     print_message "Aplicando temas satánicos..."
+
+    # Tema oscuro compatible con GNOME Flashback para evitar menús invisibles
+    if [ -d "/usr/share/themes/Yaru-dark" ]; then
+        SATANIC_GTK_THEME="Yaru-dark"
+    else
+        SATANIC_GTK_THEME="Adwaita-dark"
+    fi
     
     # GNOME: Tema oscuro
-    run_as_user gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.interface gtk-theme "$SATANIC_GTK_THEME" 2>/dev/null || true
     run_as_user gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
+
+    # Tema de ventanas para GNOME Flashback/Metacity
+    run_as_user gsettings set org.gnome.desktop.wm.preferences theme "$SATANIC_GTK_THEME" 2>/dev/null || \
+    run_as_user gsettings set org.gnome.desktop.wm.preferences theme "Adwaita" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.metacity.theme name "Adwaita" 2>/dev/null || true
     
     # Terminal: Colores satánicos (rojo/negro)
     run_as_user dconf write /org/gnome/terminal/legacy/theme-variant "'dark'" 2>/dev/null || true
@@ -64,8 +76,33 @@ apply_satanic_themes() {
         run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$SATANIC_BG" 2>/dev/null || true
         run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$SATANIC_BG" 2>/dev/null || true
     fi
+
+    # CSS para forzar contraste y visibilidad de menús/panel en Flashback
+    GTK3_DIR="$REAL_HOME/.config/gtk-3.0"
+    mkdir -p "$GTK3_DIR"
+    cat > "$GTK3_DIR/gtk.css" << 'CSS_EOF'
+/* Flashback panel: menús legibles con estética rojo/negro */
+#PanelToplevel,
+.gnome-panel-menu-bar,
+.gnome-panel-menu-bar menubar,
+.gnome-panel-menu-bar menuitem,
+.gnome-panel-menu-bar label,
+.gnome-panel-menu-button,
+.gnome-panel-menu-button label {
+    background-color: rgba(12, 0, 0, 0.88);
+    color: #ff4d4d;
+}
+
+#PanelToplevel *:hover,
+.gnome-panel-menu-bar menuitem:hover,
+.gnome-panel-menu-button:hover {
+    background-color: rgba(45, 0, 0, 0.95);
+    color: #ffd0d0;
+}
+CSS_EOF
+    chown "$REAL_USER":"$REAL_USER" "$GTK3_DIR/gtk.css" 2>/dev/null || true
     
-    print_success "Temas satánicos aplicados (rojo/negro)"
+    print_success "Temas satánicos aplicados y panel con alto contraste"
 }
 
 # Función para verificar si estamos en Ubuntu
@@ -361,9 +398,13 @@ install_gnome_tweaks() {
         gnome-flashback \
         gnome-session-flashback \
         gnome-panel \
+        gnome-menus \
         gnome-tweaks \
         dconf-editor \
         gnome-applets
+
+    # Applets extra para mejorar compatibilidad del panel superior en Flashback/Compiz
+    apt install -y indicator-applet indicator-applet-complete 2>/dev/null || true
     
     print_message "Instalando herramientas de personalización..."
     apt install -y \
@@ -461,15 +502,7 @@ configure_themes_and_animations() {
     fi
     
     # Configurar temas en GNOME
-    print_message "Configurando temas por defecto..."
-    
-    # Configurar tema GTK (con fallback si Nordic no está disponible)
-    if [ -d "/usr/share/themes/Nordic" ]; then
-        run_as_user gsettings set org.gnome.desktop.interface gtk-theme "Nordic"
-    else
-        run_as_user gsettings set org.gnome.desktop.interface gtk-theme "Arc-Dark" 2>/dev/null || \
-        run_as_user gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark"
-    fi
+    print_message "Aplicando estilo satánico consistente..."
     
     # Configurar iconos (prioridad: Tela > Reversal > Kora > Papirus)
     if [ -d "/usr/share/icons/Tela-blue-dark" ]; then
@@ -496,6 +529,9 @@ configure_themes_and_animations() {
     
     # Activar animaciones en GNOME
     run_as_user gsettings set org.gnome.desktop.interface enable-animations true
+
+    # Reforzar tema satánico en GTK/WM/fondos (evita que Nordic u otros lo sobrescriban)
+    apply_satanic_themes
     
     print_success "Temas y animaciones configuradas."
 }
@@ -539,17 +575,35 @@ EOF
 # Configurar panel de GNOME Flashback
 configure_gnome_panel() {
     print_message "Configurando panel de GNOME Flashback..."
+
+    # Si el panel quedó sin applets/menús o sin menu-bar, restaurar diseño base.
+    PANEL_OBJECTS=$(run_as_user gsettings get org.gnome.gnome-panel.layout object-id-list 2>/dev/null || echo "[]")
+    if echo "$PANEL_OBJECTS" | grep -q "\[\]" || ! echo "$PANEL_OBJECTS" | grep -q "menu-bar"; then
+        print_warning "Panel incompleto detectado, restaurando menús de GNOME Flashback..."
+        run_as_user dconf reset -f /org/gnome/gnome-panel/ 2>/dev/null || true
+        run_as_user gsettings reset-recursively org.gnome.gnome-panel.layout 2>/dev/null || true
+    fi
     
-    # Configurar panel superior
-    run_as_user gsettings set org.gnome.gnome-panel.layout toplevel-id-list "['top-panel']" 2>/dev/null || true
+    # Mantener top y bottom panel para conservar menú/ventanas como en Flashback clásico
+    run_as_user gsettings set org.gnome.gnome-panel.layout toplevel-id-list "['top-panel','bottom-panel']" 2>/dev/null || true
     
-    # Configurar Metacity (window manager de Flashback) - claves compatibles con Debian 13
-    run_as_user gsettings set org.gnome.metacity.theme name "Nordic" 2>/dev/null || true
+    # Configurar Metacity (window manager de Flashback)
+    run_as_user gsettings set org.gnome.metacity.theme name "Adwaita" 2>/dev/null || true
     run_as_user gsettings set org.gnome.mutter center-new-windows true 2>/dev/null || true
     
     # Configurar bordes de ventanas
     run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout "appmenu:minimize,maximize,close"
     run_as_user gsettings set org.gnome.desktop.wm.preferences titlebar-font "Cantarell Bold 11"
+
+    # Reaplicar colores satánicos para asegurar contraste en panel y menús
+    apply_satanic_themes
+
+    # Reiniciar panel para aplicar layout y applets de menú inmediatamente
+    if pgrep -u "$REAL_USER" -x gnome-panel >/dev/null 2>&1; then
+        run_as_user gnome-panel --replace >/dev/null 2>&1 &
+    else
+        run_as_user gnome-panel >/dev/null 2>&1 &
+    fi
     
     print_success "Panel de GNOME Flashback configurado."
 }
@@ -624,9 +678,14 @@ final_configuration() {
         fi
     done
     
-    # Establecer el primer wallpaper como predeterminado
+    # Establecer wallpaper por defecto sin perder estética satánica
     DEFAULT_WALLPAPER="$WALLPAPER_DIR/nature-mountains.jpg"
-    if [ -f "$DEFAULT_WALLPAPER" ]; then
+    SATANIC_BG="$REAL_HOME/.local/share/backgrounds/satanic-dark.png"
+    if [ -f "$SATANIC_BG" ]; then
+        run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$SATANIC_BG"
+        run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$SATANIC_BG"
+        run_as_user gsettings set org.gnome.desktop.background picture-options "zoom"
+    elif [ -f "$DEFAULT_WALLPAPER" ]; then
         run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$DEFAULT_WALLPAPER"
         run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_DIR/night-stars.jpg"
         run_as_user gsettings set org.gnome.desktop.background picture-options "zoom"
@@ -682,13 +741,8 @@ XMLEOF
     
     print_success "Wallpapers instalados y disponibles en Configuración > Fondo"
     
-    # Configurar tema de shell (para GNOME Flashback) - usar tema instalado o fallback
-    if [ -d "/usr/share/themes/Nordic" ]; then
-        run_as_user gsettings set org.gnome.desktop.wm.preferences theme "Nordic" 2>/dev/null || true
-    else
-        run_as_user gsettings set org.gnome.desktop.wm.preferences theme "Arc-Dark" 2>/dev/null || \
-        run_as_user gsettings set org.gnome.desktop.wm.preferences theme "Adwaita" 2>/dev/null || true
-    fi
+    # Forzar que al final se mantenga el tema satánico en todo el escritorio
+    apply_satanic_themes
     
     # Reiniciar compositor Metacity (sin reiniciar sistema)
     print_message "Reiniciando compositor..."
